@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spotify Web Playback</title>
+</head>
+<body>
+  <button id="loginButton">Login to Spotify</button>
+  <button id="playButton" disabled>Play Song</button>
+
+  <script>
+    const clientId = "dbf1421dc88149dc91b47a5dcb697f34";
+    const redirectUri = "http://localhost:3000"; 
+    const scopes = "streaming user-read-email user-read-private";
+
+    // Login function
+    document.getElementById("loginButton").addEventListener("click", () => {
+      const authUrl = `https://accounts.spotify.com/authorize?client_id=${clientId}&response_type=token&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes)}`;
+      window.location.href = authUrl;
+    });
+
+    // Extract token from URL
+    function getTokenFromUrl() {
+      const hash = window.location.hash.substring(1);
+      const params = new URLSearchParams(hash);
+      return params.get("access_token");
+    }
+
+    // Initialize Spotify Player
+    window.onSpotifyWebPlaybackSDKReady = () => {
+      const token = getTokenFromUrl();
+      if (!token) {
+        alert("Login required to play music!");
+        return;
+      }
+
+      const player = new Spotify.Player({
+        name: "Web Playback SDK Demo",
+        getOAuthToken: cb => { cb(token); },
+        volume: 0.5
+      });
+
+      // Connect to the player
+      player.connect();
+
+      player.addListener("ready", ({ device_id }) => {
+        console.log("Ready with Device ID:", device_id);
+        document.getElementById("playButton").disabled = false;
+
+        // Play a song
+        document.getElementById("playButton").addEventListener("click", () => {
+          fetch(`https://api.spotify.com/v1/me/player/play`, {
+            method: "PUT",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              uris: ["spotify:track:2w6Z9K3DwjA67pVdyr76d4"] 
+            })
+          }).then(response => {
+            if (response.ok) {
+              console.log("Playback started!");
+            } else {
+              console.error("Error starting playback:", response);
+            }
+          });
+        });
+      });
+
+      player.addListener("not_ready", ({ device_id }) => {
+        console.log("Device ID has gone offline:", device_id);
+      });
+
+      player.addListener("player_state_changed", state => {
+        console.log("Player state changed:", state);
+      });
+    };
+  </script>
+</body>
+</html>
